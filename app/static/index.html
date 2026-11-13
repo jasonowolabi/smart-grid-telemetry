@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Grid Telemetry Operations Center - Lagos</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-emerald-400">⚡ Lagos Smart Grid Telemetry</h1>
+            <p class="text-sm text-slate-400">Real-time IoT grid monitoring & anomaly detection pipeline</p>
+        </div>
+        <div id="connection-status" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
+            ● Live Streaming
+        </div>
+    </header>
+
+    <!-- Summary Metrics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+            <p class="text-xs uppercase tracking-wider text-slate-400">Total Meters</p>
+            <p id="stat-total" class="text-3xl font-extrabold mt-1 text-white">0</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+            <p class="text-xs uppercase tracking-wider text-emerald-400">Active Grid</p>
+            <p id="stat-active" class="text-3xl font-extrabold mt-1 text-emerald-400">0</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+            <p class="text-xs uppercase tracking-wider text-red-400">Outages / Blackouts</p>
+            <p id="stat-outages" class="text-3xl font-extrabold mt-1 text-red-400">0</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+            <p class="text-xs uppercase tracking-wider text-amber-400">Voltage Surges</p>
+            <p id="stat-surges" class="text-3xl font-extrabold mt-1 text-amber-400">0</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+            <p class="text-xs uppercase tracking-wider text-cyan-400">Total Load (kW)</p>
+            <p id="stat-load" class="text-3xl font-extrabold mt-1 text-cyan-400">0.0</p>
+        </div>
+    </div>
+
+    <!-- Main Grid Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left 2 Columns: Live Grid Nodes / Meters -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-slate-200">Substation & Meter Nodes</h2>
+            <div id="meters-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-2">
+                <!-- Dynamic meter cards will be inserted here -->
+                <p class="text-slate-500 italic">Waiting for simulator telemetry stream...</p>
+            </div>
+        </div>
+
+        <!-- Right Column: Live Incident Log / Alerts -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg flex flex-col">
+            <h2 class="text-lg font-semibold mb-4 text-slate-200">🚨 Grid Incident Stream</h2>
+            <div id="alerts-list" class="space-y-3 overflow-y-auto max-h-[600px] pr-2 flex-grow">
+                <p class="text-slate-500 italic text-sm">No active alerts recorded.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Frontend Polling Script -->
+    <script>
+        async function fetchGridState() {
+            try {
+                const response = await fetch('/api/v1/grid/state');
+                const data = await response.json();
+
+                // Update summary stats
+                document.getElementById('stat-total').innerText = data.summary.total_meters;
+                document.getElementById('stat-active').innerText = data.summary.active;
+                document.getElementById('stat-outages').innerText = data.summary.outages;
+                document.getElementById('stat-surges').innerText = data.summary.surges;
+                document.getElementById('stat-load').innerText = data.summary.total_kw;
+
+                // Render meters grid
+                const metersContainer = document.getElementById('meters-grid');
+                if (data.meters.length === 0) {
+                    metersContainer.innerHTML = '<p class="text-slate-500 italic">Waiting for simulator telemetry stream...</p>';
+                } else {
+                    metersContainer.innerHTML = data.meters.map(m => {
+                        let statusColor = 'border-emerald-600 bg-emerald-950/20 text-emerald-400';
+                        let badgeBg = 'bg-emerald-900 text-emerald-300';
+                        if (m.status === 'OUTAGE') {
+                            statusColor = 'border-red-600 bg-red-950/30 text-red-400 animate-pulse';
+                            badgeBg = 'bg-red-900 text-red-200';
+                        } else if (m.status === 'SURGE') {
+                            statusColor = 'border-amber-600 bg-amber-950/30 text-amber-400';
+                            badgeBg = 'bg-amber-900 text-amber-200';
+                        }
+
+                        return `
+                            <div class="border rounded-lg p-4 ${statusColor} transition-all duration-300 shadow">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="font-bold text-sm tracking-wide text-white">${m.meter_id}</span>
+                                    <span class="text-xs px-2 py-0.5 rounded font-medium uppercase ${badgeBg}">${m.status}</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2 text-xs text-slate-300 mt-2">
+                                    <div>📍 ${m.zone}</div>
+                                    <div>⚡ ${m.voltage}V</div>
+                                    <div>🔌 ${m.kw_consumed} kW</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Render alerts log
+                const alertsContainer = document.getElementById('alerts-list');
+                if (data.alerts.length === 0) {
+                    alertsContainer.innerHTML = '<p class="text-slate-500 italic text-sm">No active alerts recorded.</p>';
+                } else {
+                    alertsContainer.innerHTML = data.alerts.map(a => `
+                        <div class="bg-red-950/40 border border-red-900 rounded-lg p-3 text-xs">
+                            <div class="flex justify-between text-red-400 font-bold mb-1">
+                                <span>[${a.timestamp}] ${a.zone}</span>
+                                <span class="bg-red-900 text-white px-1.5 py-0.2 rounded text-[10px]">${a.status}</span>
+                            </div>
+                            <p class="text-slate-300">${a.message}</p>
+                        </div>
+                    `).join('');
+                }
+
+                document.getElementById('connection-status').className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800";
+                document.getElementById('connection-status').innerText = "● Live Streaming";
+
+            } catch (err) {
+                console.error("Failed to fetch grid state:", err);
+                document.getElementById('connection-status').className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
+                document.getElementById('connection-status').innerText = "○ Connection Lost";
+            }
+        }
+
+        // Poll every 1 second
+        setInterval(fetchGridState, 1000);
+        fetchGridState();
+    </script>
+</body>
+</html>
